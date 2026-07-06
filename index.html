@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>シフトSAT｜30秒でつくる、毎日の業務シフト</title>
+<meta name="description" content="出勤者を選んで実行するだけ。休憩の間隔や担当回数、チームの人数バランスまで考えたシフトが数秒で組み上がる、iPhone・iPad向けのシフト作成アプリです。">
+<style>
+  :root{
+    /* Palette — 現場の清潔感と、割り当てが「決まる」ときの藍。
+       AIデフォルト（クリーム×テラコッタ／黒×アシッド／新聞）を避け、
+       白基調＋インクブルー＋確定を示すシアングリーンで構成 */
+    --paper:#ffffff;
+    --mist:#f3f5f8;      /* 薄い面 */
+    --grid:#e4e8ee;      /* 罫線 */
+    --ink:#161b26;       /* 主要テキスト */
+    --ink-soft:#5a6474;  /* 副次テキスト */
+    --blue:#1f3a8a;      /* ブランドの藍 */
+    --blue-bright:#2f5bd8;
+    --set:#0fa47f;       /* 「割り当て確定」を示す緑 */
+    --set-soft:#e0f4ee;
+    --amber:#e8a33d;
+    --cell-b-bg:#e7edfb; /* 割り当てセル（青系） */
+    --cell-b-fg:#22409c;
+    --header-bg:rgba(255,255,255,.82);
+
+    --radius:14px;
+    --shadow:0 1px 2px rgba(22,27,38,.04), 0 8px 30px rgba(22,27,38,.06);
+  }
+
+  /* ダークモード（端末の外観設定・アクセシビリティで背景を暗くしている人向け）。
+     背景黒＋文字黒で読めなくなる問題を防ぐため、暗所では明色テキストに切り替える。 */
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#0e1116;
+      --mist:#171b22;
+      --grid:#272d38;
+      --ink:#eef1f6;
+      --ink-soft:#9aa4b4;
+      --blue:#9db8ff;         /* 暗背景で沈まないよう明るめの藍に */
+      --blue-bright:#7ea0ff;
+      --set:#38d7ab;
+      --set-soft:#123328;
+      --amber:#e8a33d;
+      --cell-b-bg:#1b2440;
+      --cell-b-fg:#a9c0ff;
+      --header-bg:rgba(14,17,22,.82);
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.45);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",
+      "Noto Sans JP","Segoe UI",Meiryo,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"palt";
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:0 24px}
+  a{color:var(--blue-bright);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* --- header --- */
+  header{
+    position:sticky;top:0;z-index:20;
+    background:var(--header-bg);
+    backdrop-filter:saturate(180%) blur(12px);
+    border-bottom:1px solid var(--grid);
+  }
+  .bar{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.02em;font-size:18px}
+  .logo .mark{
+    width:26px;height:26px;border-radius:7px;
+    background:
+      linear-gradient(135deg,var(--blue) 0%, var(--blue-bright) 100%);
+    position:relative;flex:none;
+  }
+  .logo .mark::after{
+    /* シフト表のマス目を象徴する小さなグリッド＋確定マーク */
+    content:"";position:absolute;inset:6px;
+    background:
+      linear-gradient(#fff 1px,transparent 1px) 0 0/100% 6px,
+      linear-gradient(90deg,#fff 1px,transparent 1px) 0 0/6px 100%;
+    opacity:.55;
+  }
+  .navlinks{display:flex;gap:22px;font-size:14px;font-weight:600}
+  .navlinks a{color:var(--ink-soft)}
+  .navlinks a:hover{color:var(--ink);text-decoration:none}
+  @media(max-width:640px){.navlinks{display:none}}
+
+  /* --- hero --- */
+  .hero{padding:76px 0 40px;position:relative;overflow:hidden}
+  .eyebrow{
+    display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.14em;
+    color:var(--ink-soft);background:var(--mist);
+    padding:6px 14px;border-radius:100px;margin-bottom:22px;
+  }
+  .eyebrow .s{
+    color:var(--set);font-weight:800;
+  }
+  h1{
+    font-size:clamp(32px,6vw,52px);line-height:1.18;font-weight:800;
+    letter-spacing:-.01em;margin-bottom:20px;
+  }
+  h1 .accent{color:var(--blue)}
+  h1 .satto{
+    color:var(--set);position:relative;white-space:nowrap;
+  }
+  .lead{font-size:clamp(16px,2.4vw,19px);color:var(--ink-soft);max-width:34em;margin-bottom:32px}
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    font-weight:700;font-size:15px;
+    padding:13px 22px;border-radius:12px;border:1px solid transparent;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--blue-bright);text-decoration:none;transform:translateY(-1px);box-shadow:var(--shadow)}
+  .btn-ghost{background:var(--paper);color:var(--ink);border-color:var(--grid)}
+  .btn-ghost:hover{border-color:var(--ink-soft);text-decoration:none}
+  .badge-soon{font-size:12px;color:var(--ink-soft)}
+
+  /* --- signature: シフト表グリッド --- */
+  .board{
+    margin-top:52px;
+    border:1px solid var(--grid);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;background:var(--paper);
+  }
+  .board-head{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--grid);background:var(--mist);
+    font-size:13px;color:var(--ink-soft);font-weight:600;
+  }
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--set)}
+  table.grid{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.grid th,table.grid td{
+    border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
+    padding:11px 12px;text-align:left;white-space:nowrap;
+  }
+  table.grid thead th{background:var(--mist);color:var(--ink-soft);font-weight:700;font-size:12.5px}
+  table.grid td:first-child{color:var(--ink-soft);font-weight:600}
+  table.grid td:first-child .sub{display:block;font-size:11px;color:var(--ink-soft);opacity:.7;font-weight:500}
+  table.grid th:first-child{color:var(--ink-soft);font-weight:700}
+  table.grid tr td:last-child,table.grid tr th:last-child{border-right:none}
+  table.grid tbody tr:last-child td{border-bottom:none}
+  .empty{color:var(--grid);font-weight:700}
+  .cell{
+    display:inline-block;padding:3px 10px;border-radius:7px;
+    background:var(--set-soft);color:#0a6e55;font-weight:700;font-size:12.5px;
+    opacity:0;transform:translateY(4px) scale(.96);
+    transition:opacity .32s ease, transform .32s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .cell.b{background:var(--cell-b-bg);color:var(--cell-b-fg)}
+  @media (prefers-color-scheme: dark){ .cell{color:#38d7ab} }
+  /* JSが name を入れて .on を付けると出現する */
+  .cell.on{opacity:1;transform:none}
+  .board-head{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--grid);background:var(--mist);
+    font-size:13px;color:var(--ink-soft);font-weight:600;
+  }
+  .board-head .status{
+    margin-left:auto;font-size:12px;font-weight:700;
+    color:var(--ink-soft);transition:color .3s;
+  }
+  .board-head .status.done{color:var(--set)}
+  .board-foot{
+    padding:12px 16px;border-top:1px solid var(--grid);
+    display:flex;align-items:center;gap:8px;
+  }
+  .run-btn{
+    width:100%;display:inline-flex;align-items:center;justify-content:center;gap:9px;
+    font-family:inherit;font-weight:800;font-size:15px;color:#fff;
+    background:var(--blue-bright);border:none;border-radius:11px;
+    padding:12px 18px;cursor:pointer;transition:background .15s, transform .1s, opacity .2s;
+  }
+  .run-btn:hover{background:var(--blue)}
+  .run-btn:active{transform:scale(.99)}
+  .run-btn .tri{font-size:12px}
+  .run-btn.busy{opacity:.7;pointer-events:none}
+  .run-btn.done{background:var(--set)}
+  @media (prefers-color-scheme: dark){ .run-btn{color:#0e1116} }
+  .board-cap{
+    font-size:12.5px;color:var(--ink-soft);margin-top:12px;text-align:center;
+  }
+  @media(prefers-reduced-motion:reduce){
+    .cell{transition:none}
+  }
+
+  /* --- sections --- */
+  section{padding:64px 0}
+  .sec-label{
+    font-size:12.5px;font-weight:700;letter-spacing:.14em;color:var(--blue);
+    margin-bottom:12px;
+  }
+  h2{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.01em;margin-bottom:14px}
+  .sec-lead{color:var(--ink-soft);max-width:40em;margin-bottom:36px}
+
+  .features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:760px){.features{grid-template-columns:1fr}}
+  .card{
+    border:1px solid var(--grid);border-radius:var(--radius);padding:24px;
+    background:var(--paper);transition:border-color .15s, transform .15s;
+  }
+  .card:hover{border-color:var(--blue-bright);transform:translateY(-2px)}
+  .card .ic{
+    width:40px;height:40px;border-radius:10px;background:var(--mist);
+    display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:20px;
+  }
+  .card h3{font-size:17px;font-weight:700;margin-bottom:6px}
+  .card p{font-size:14px;color:var(--ink-soft);line-height:1.7}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:s}
+  @media(max-width:760px){.steps{grid-template-columns:1fr}}
+  .step{position:relative;padding:24px;border:1px solid var(--grid);border-radius:var(--radius);background:var(--mist)}
+  .step::before{
+    counter-increment:s;content:counter(s);
+    display:flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:8px;background:var(--blue);color:#fff;
+    font-weight:800;font-size:15px;margin-bottom:14px;
+  }
+  .step h3{font-size:16px;font-weight:700;margin-bottom:5px}
+  .step p{font-size:14px;color:var(--ink-soft)}
+
+  /* legal / support blocks */
+  .block{border-top:1px solid var(--grid);padding-top:44px}
+  .block h2{margin-bottom:20px}
+  .prose h3{font-size:16px;font-weight:700;margin:26px 0 8px}
+  .prose p{color:var(--ink-soft);margin-bottom:12px;font-size:15px}
+  .prose ul{color:var(--ink-soft);margin:0 0 12px 1.2em;font-size:15px}
+  .prose li{margin-bottom:6px}
+  .meta{font-size:13px;color:var(--ink-soft);margin-top:8px}
+
+  .contact-card{
+    border:1px solid var(--grid);border-radius:var(--radius);padding:28px;
+    background:var(--mist);display:flex;gap:20px;align-items:center;flex-wrap:wrap;
+    justify-content:space-between;
+  }
+  .contact-card .t{font-size:17px;font-weight:700;margin-bottom:4px}
+  .contact-card .d{font-size:14px;color:var(--ink-soft)}
+
+  footer{border-top:1px solid var(--grid);padding:36px 0;color:var(--ink-soft);font-size:13px}
+  .foot-row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+  .foot-links{display:flex;gap:18px;flex-wrap:wrap}
+  .foot-links a{color:var(--ink-soft)}
+
+  /* placeholder（差し替え箇所）を視覚的に示す控えめなマーク */
+  .todo{
+    background:#fff7e6;border:1px dashed var(--amber);border-radius:6px;
+    padding:0 6px;color:#9a6b12;font-size:.92em;font-weight:600;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="logo"><span class="mark"></span>シフトSAT</div>
+    <nav class="navlinks">
+      <a href="#features">できること</a>
+      <a href="#how">使い方</a>
+      <a href="#privacy">プライバシー</a>
+      <a href="#contact">問い合わせ</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="s">S</span>MART <span class="s">A</span>SSIGNMENT <span class="s">T</span>OOL</span>
+    <h1>毎日のシフトを、<br><span class="satto">サッと</span><span class="accent">30秒</span>でつくる。</h1>
+    <p class="lead">
+      出勤者を選んで実行するだけ。休憩の間隔、担当回数の上限、チームの人数バランスまで考えた1日のシフトが、数秒で組み上がります。iPhone・iPad で動く、現場のためのシフト作成アプリです。
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#" aria-disabled="true">App Store で入手</a>
+      <span class="badge-soon">※ 近日公開予定</span>
+    </div>
+
+    <!-- Signature: 実行ボタンを押すとシフトが埋まっていく実演 -->
+    <div class="board" id="board" aria-label="シフト割り当ての実演">
+      <div class="board-head">
+        <span class="dot"></span>7月6日（月）・売場
+        <span class="status" id="status">出勤者を選んで実行</span>
+      </div>
+      <table class="grid">
+        <thead>
+          <tr><th>時間</th><th>レジ</th><th>品出し</th><th>フロア</th></tr>
+        </thead>
+        <tbody id="grid-body">
+          <tr data-slot>
+            <td>9:00<span class="sub">開店準備</span></td>
+            <td><span class="empty">—</span></td>
+            <td><span class="cell b" data-fill="田中">—</span></td>
+            <td><span class="cell" data-fill="佐藤">—</span></td>
+          </tr>
+          <tr data-slot>
+            <td>10:00<span class="sub">午前</span></td>
+            <td><span class="cell" data-fill="鈴木">—</span></td>
+            <td><span class="cell b" data-fill="高橋">—</span></td>
+            <td><span class="empty">—</span></td>
+          </tr>
+          <tr data-slot>
+            <td>12:00<span class="sub">昼ピーク</span></td>
+            <td><span class="cell" data-fill="山本">—</span></td>
+            <td><span class="cell b" data-fill="渡辺">—</span></td>
+            <td><span class="cell" data-fill="中村">—</span></td>
+          </tr>
+          <tr data-slot>
+            <td>15:00<span class="sub">午後</span></td>
+            <td><span class="cell" data-fill="小林">—</span></td>
+            <td><span class="empty">—</span></td>
+            <td><span class="cell b" data-fill="加藤">—</span></td>
+          </tr>
+          <tr data-slot>
+            <td>18:00<span class="sub">夕方</span></td>
+            <td><span class="cell" data-fill="伊藤">—</span></td>
+            <td><span class="cell b" data-fill="山田">—</span></td>
+            <td><span class="empty">—</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="board-foot">
+        <button class="run-btn" id="run-btn" type="button">
+          <span class="tri">▶</span> 割り当てを実行
+        </button>
+      </div>
+    </div>
+    <p class="board-cap">↑ ボタンを押すと、条件を満たす組み合わせが数秒で埋まります（アプリの実際の動きです）</p>
+  </div>
+</div>
+
+<!-- ===== FEATURES ===== -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-label">できること</div>
+    <h2>組むのはアプリ、決めるのはあなた。</h2>
+    <p class="sec-lead">条件（ルール）は必要なぶんだけ。細かい設定はあとから少しずつ足せます。</p>
+    <div class="features">
+      <div class="card">
+        <div class="ic">⚡️</div>
+        <h3>自動で割り当て</h3>
+        <p>出勤者を選んで実行するだけ。条件を満たす組み合わせをアプリが探して、数秒で1日ぶんのシフトを組み上げます。</p>
+      </div>
+      <div class="card">
+        <div class="ic">🎛️</div>
+        <h3>こだわりの条件</h3>
+        <p>同じ担当の連続を避ける間隔、担当回数の上限、区分ごとの必要人数、優先したいスタッフ。現場のルールを細かく反映できます。</p>
+      </div>
+      <div class="card">
+        <div class="ic">📌</div>
+        <h3>指定して組み直し</h3>
+        <p>「この枠はこの人」と固定したまま、残りだけを組み直し。手直しと自動化を自由に行き来できます。</p>
+      </div>
+      <div class="card">
+        <div class="ic">🏢</div>
+        <h3>事業所ごとに切り替え</h3>
+        <p>店舗や部署ごとに、スタッフ・業務・ルールをまるごと切り替え。複数の現場を1つのアプリで管理できます。</p>
+      </div>
+      <div class="card">
+        <div class="ic">📊</div>
+        <h3>PCでまとめて登録</h3>
+        <p>スタッフや業務は、ExcelやスプレッドシートからCSV・xlsxでまとめて取り込み。大人数の初期設定もらくに。</p>
+      </div>
+      <div class="card">
+        <div class="ic">📤</div>
+        <h3>そのまま共有</h3>
+        <p>結果は画像・PDF・CSV・Excelで書き出し。設定はQRコードでその場で共有。現場のスタッフにも届く形で渡せます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW ===== -->
+<section id="how" style="background:var(--mist);border-top:1px solid var(--grid);border-bottom:1px solid var(--grid)">
+  <div class="wrap">
+    <div class="sec-label">使い方</div>
+    <h2>3ステップで完成。</h2>
+    <p class="sec-lead">はじめてでも、サンプルデータですぐに試せます。</p>
+    <div class="steps">
+      <div class="step">
+        <h3>業務を登録</h3>
+        <p>業務ごとの実施時間と、必要な役割を人数ぶん設定します。</p>
+      </div>
+      <div class="step">
+        <h3>スタッフを登録</h3>
+        <p>名前と、担当できる役割にチェック。長押し→なぞりでまとめて選択も。</p>
+      </div>
+      <div class="step">
+        <h3>実行するだけ</h3>
+        <p>出勤者を選んで実行。数秒で1日ぶんのシフトが組み上がります。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PRIVACY ===== -->
+<section id="privacy">
+  <div class="wrap">
+    <div class="block prose" style="border-top:none;padding-top:0">
+      <div class="sec-label">プライバシー</div>
+      <h2>プライバシーポリシー</h2>
+      <p class="meta">最終更新日：<span class="todo">2026年〇月〇日（公開時に記入）</span></p>
+
+      <p>シフトSAT（以下「本アプリ」）は、<span class="todo">〇〇〇〇（開発者名・屋号を記入）</span>（以下「当方」）が提供します。当方は、利用者のプライバシーを尊重し、本アプリで扱う情報を適切に取り扱います。</p>
+
+      <h3>1. 収集する情報について</h3>
+      <p>本アプリで作成・入力されたデータ（スタッフ名、業務、ルール、割り当て結果など）は、原則として利用者の端末内にのみ保存されます。当方がこれらのデータを収集・送信・保存することはありません。</p>
+
+      <h3>2. 情報の外部送信</h3>
+      <p>本アプリは、利用者が作成したシフトや設定の内容を、当方や第三者のサーバーへ自動的に送信しません。ファイルやQRコードによる共有は、利用者自身の操作によって、利用者が選んだ相手にのみ行われます。</p>
+
+      <h3>3. 課金について</h3>
+      <p>本アプリの有料プラン（サブスクリプション等）の購入・管理は、Apple の App Store を通じて行われます。購入に関する情報は Apple によって処理され、当方が利用者のクレジットカード情報などの決済情報を取得することはありません。</p>
+
+      <h3>4. 第三者サービス</h3>
+      <p>本アプリは、アプリの動作に必要な範囲で Apple の提供する仕組み（App Store、StoreKit 等）を利用します。これらの利用に伴う情報の取り扱いは、Apple のプライバシーポリシーに従います。</p>
+
+      <h3>5. お問い合わせ</h3>
+      <p>本ポリシーに関するお問い合わせは、本ページ下部の「お問い合わせ」よりご連絡ください。</p>
+
+      <h3>6. 改定について</h3>
+      <p>本ポリシーは、必要に応じて改定することがあります。重要な変更がある場合は、本ページ上で告知します。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONTACT ===== -->
+<section id="contact" style="padding-top:0">
+  <div class="wrap">
+    <div class="block">
+      <div class="sec-label">サポート</div>
+      <h2>お問い合わせ</h2>
+      <p class="sec-lead">ご質問・ご要望・不具合のご報告は、下のフォームからお送りください。できるだけ返信します。</p>
+      <div class="contact-card">
+        <div>
+          <div class="t">お問い合わせフォーム</div>
+          <div class="d">Google フォームが開きます。数分で送信できます。</div>
+        </div>
+        <a class="btn btn-primary" href="https://forms.gle/XXXXXXXX" target="_blank" rel="noopener">フォームを開く</a>
+      </div>
+      <p class="meta" style="margin-top:14px">
+        ※ フォームのURLは <span class="todo">実際のGoogleフォームのリンクに差し替え</span> てください。
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="wrap foot-row">
+    <div class="logo" style="font-size:15px"><span class="mark"></span>シフトSAT</div>
+    <div class="foot-links">
+      <a href="#features">できること</a>
+      <a href="#how">使い方</a>
+      <a href="#privacy">プライバシーポリシー</a>
+      <a href="#contact">問い合わせ</a>
+      <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" target="_blank" rel="noopener">利用規約（EULA）</a>
+    </div>
+  </div>
+  <div class="wrap" style="margin-top:16px">© 2026 <span class="todo">開発者名を記入</span>. SAT = Smart Assignment Tool.</div>
+</footer>
+
+<script>
+(function(){
+  var board   = document.getElementById('board');
+  var btn      = document.getElementById('run-btn');
+  var status   = document.getElementById('status');
+  var cells    = Array.prototype.slice.call(document.querySelectorAll('#grid-body .cell'));
+  if(!board || !btn) return;
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var hasRun = false;
+
+  function fill(instant){
+    if(hasRun) return;
+    hasRun = true;
+    btn.classList.add('busy');
+    btn.querySelector('.tri').textContent = '⏳';
+    btn.childNodes[btn.childNodes.length-1].textContent = ' 割り当て中…';
+    status.textContent = '探索中…';
+
+    var per = instant ? 0 : 260;   // 1セルごとの間隔
+    cells.forEach(function(cell, i){
+      setTimeout(function(){
+        cell.textContent = cell.getAttribute('data-fill');
+        cell.classList.add('on');
+        if(i === cells.length - 1){
+          btn.classList.remove('busy');
+          btn.classList.add('done');
+          btn.querySelector('.tri').textContent = '✓';
+          btn.childNodes[btn.childNodes.length-1].textContent = ' 全枠OK・完成';
+          status.textContent = '全枠OK';
+          status.classList.add('done');
+        }
+      }, instant ? 0 : (300 + i*per));
+    });
+  }
+
+  // ボタンでいつでも実行できる
+  btn.addEventListener('click', function(){ fill(reduce); });
+
+  // reduced-motion の人には即完成表示（動きなし）
+  if(reduce){ fill(true); return; }
+
+  // スクロールして表が「完全に」見えたら、自動で1回だけ実行
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting && e.intersectionRatio >= 0.85){
+          fill(false);
+          io.disconnect();
+        }
+      });
+    }, { threshold: [0, .85, 1] });
+    io.observe(board);
+  } else {
+    fill(false);
+  }
+})();
+</script>
+</body>
+</html>
